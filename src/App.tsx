@@ -3,7 +3,9 @@ import logo from './logo.svg';
 import './App.css';
 import * as O from "fp-ts/Option"
 import * as M from "fp-ts/Map"
+import * as A from "fp-ts/Array"
 import * as s from "fp-ts/string"
+import * as b from "fp-ts/boolean"
 import {pipe} from "fp-ts/function";
 
 type FormQuestion = TextQuestion | SingleChoice | MultipleChoice
@@ -101,7 +103,7 @@ export const mockEndpoint = (req: ServerRequest): Promise<ServerResponse> => {
 }
 
 
-type Questions = Map<string, FormQuestion>;
+type Questions = Array<QuestionStep>
 
 
 type WelcomeState = { _type: "welcome" }
@@ -123,9 +125,17 @@ const processResponse = (onQuestion: (id: string, question: FormQuestion) => voi
     }
 }
 
-const addQuestion = (id: string, question: FormQuestion) => (questions: Questions) => pipe(questions, M.upsertAt(s.Eq)(id, question))
+const addQuestion = (id: string, question: FormQuestion) => (questions: Questions) => pipe(questions, A.exists(ById(id)), b.fold(() => questions.concat([{
+    _type: "question",
+    id,
+    question
+}]), () => questions))
 
-const getQuestion = (id: string) => (questions: Questions) => pipe(questions, M.lookup(s.Eq)(id))
+const getPrevious = (id: string) => (questions: Questions) => pipe(questions, A.findIndex(ById(id)), O.chain(index => pipe(questions, A.lookup(index - 1))))
+
+const ById = (id: string) => (step: QuestionStep) => step.id === id
+
+const getQuestion = (id: string) => (questions: Questions) => pipe(questions, A.findFirst(ById(id)))
 
 const Question: React.FC<{ question: FormQuestion, onDone: () => void }> = props => {
     switch (props.question._type) {
@@ -140,9 +150,14 @@ const Question: React.FC<{ question: FormQuestion, onDone: () => void }> = props
 }
 
 const Done: React.FC<{}> = props => {
-    return <div className="max-w-md mx-auto my-10 p-6">
-        <h1>We're on it!</h1>
-        <p>This is a confirmation message</p>
+    return <div className="min-h-screen flex flex-col justify-between">
+        <div className="flex-grow flex flex-col justify-center max-w-md mx-auto p-6">
+            <div className="text-center">
+                <h1 className={"text-4xl font-bold"}>We are On it</h1>
+                <p className={"mt-4"}>Sorry to hear you are having an issue with your bill</p>
+            </div>
+        </div>
+
     </div>
 }
 const Welcome: React.FC<{ onReady: () => void }> = (props) =>
@@ -163,6 +178,25 @@ const Welcome: React.FC<{ onReady: () => void }> = (props) =>
             </button>
         </div>
     </div>
+const QuestionStep: React.FC<{ children: React.ReactNode, onPrev: () => void }> = (props) =>
+    <div className="min-h-screen flex flex-col justify-between">
+        <div className="flex-grow flex flex-col justify-center max-w-md mx-auto p-6">
+            {props.children}
+        </div>
+        <div className="bg-gray-100 shadow-md p-4">
+            <a
+                href="#"
+                className="text-black hover:underline focus:outline-none focus:shadow-outline-gray"
+                onClick={(e) => {
+                    e.preventDefault();
+                    props.onPrev();
+                }}
+            >
+                Previous Question
+            </a>
+        </div>
+    </div>
+
 
 const TextQuestion: React.FC<{ question: TextQuestion, onDone: () => void }> = ({
                                                                                     question: {
@@ -200,7 +234,8 @@ const SingleChoiceQuestion: React.FC<{ question: SingleChoice, onDone: () => voi
                                                                                             question: {
                                                                                                 question,
                                                                                                 description,
-                                                                                                choices
+                                                                                                choices,
+                                                                                                selected
                                                                                             }
                                                                                         }) => {
     return (
@@ -212,7 +247,7 @@ const SingleChoiceQuestion: React.FC<{ question: SingleChoice, onDone: () => voi
                 <label className="block text-gray-700 text-sm font-bold mb-2">Select One</label>
                 <div className="flex flex-col">
                     {choices.map((choice, i) => <label className="inline-flex items-center" key={i}>
-                        <input type="radio" name="choice" className="form-radio text-indigo-500"/>
+                        <input type="radio" name="choice" className="form-radio text-indigo-500" defaultChecked={selected === i}/>
                         <span className="ml-2">{choice.text}</span>
                     </label>)}
                 </div>
@@ -233,7 +268,8 @@ const MultipleChoiceQuestion: React.FC<{ question: MultipleChoice, onDone: () =>
                                                                                                 question: {
                                                                                                     question,
                                                                                                     description,
-                                                                                                    choices
+                                                                                                    choices,
+                                                                                                    selected
                                                                                                 }
                                                                                             }) => {
     return (
@@ -245,7 +281,7 @@ const MultipleChoiceQuestion: React.FC<{ question: MultipleChoice, onDone: () =>
                 <label className="block text-gray-700 text-sm font-bold mb-2">Choose as many as you like</label>
                 <div className="flex flex-col">
                     {choices.map((choice, i) => <label className="inline-flex items-center" key={i}>
-                        <input type="checkbox" className="form-checkbox text-indigo-500"/>
+                        <input type="checkbox" className="form-checkbox text-indigo-500" defaultChecked={selected.includes(i) }/>
                         <span className="ml-2">{choice.text}</span>
                     </label>)}
                 </div>
@@ -265,7 +301,7 @@ const MultipleChoiceQuestion: React.FC<{ question: MultipleChoice, onDone: () =>
 
 
 export const FormController = () => {
-    const [questions, setQuestions] = React.useState<Questions>(new Map());
+    const [questions, setQuestions] = React.useState<Questions>([]);
     const [formState, setFormState] = React.useState<FormState>(welcomeForm)
 
 
@@ -283,13 +319,21 @@ export const FormController = () => {
         queryServer({}).then(processResponse(handleAddQuestion, handleFormDone))
     }
 
+    const handleBack = (id: string) => {
+        pipe(questions, getPrevious(id), O.foldW(() => {
+        }, (prev) => {
+            setFormState({_type: "active", id: prev.id})
+        }))
+    }
+
     switch (formState._type) {
         case "welcome":
             return <Welcome onReady={handleStart}/>
         case "active":
-            return pipe(questions, getQuestion(formState.id), O.map(quesiton => <Question
-                question={quesiton}
-                onDone={() => queryServer({questionId: formState.id}).then(processResponse(handleAddQuestion, handleFormDone))}/>), O.toNullable)
+            return pipe(questions, getQuestion(formState.id), O.map(step => <QuestionStep
+                onPrev={() => handleBack(formState.id)}><Question
+                question={step.question}
+                onDone={() => queryServer({questionId: formState.id}).then(processResponse(handleAddQuestion, handleFormDone))}/></QuestionStep>), O.toNullable)
         case "done":
             return <Done/>
     }
