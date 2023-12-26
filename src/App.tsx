@@ -1,10 +1,7 @@
-import React, {useEffect} from 'react';
-import logo from './logo.svg';
+import React from 'react';
 import './App.css';
 import * as O from "fp-ts/Option"
-import * as M from "fp-ts/Map"
 import * as A from "fp-ts/Array"
-import * as s from "fp-ts/string"
 import * as b from "fp-ts/boolean"
 import {pipe} from "fp-ts/function";
 
@@ -76,8 +73,8 @@ const sampleSingleChoiceStep: Step = {
     question: {
         _type: "single",
         question: "Are you insured?",
-        description: "What is your insruance status",
-        choices: [{text: "Yes"}, {text: "No"}],
+        description: "What is your insurance status",
+        choices: [{text: "Yes, I'm Insured"}, {text: "No, I do not have insurance"}],
     }
 }
 
@@ -247,7 +244,8 @@ const SingleChoiceQuestion: React.FC<{ question: SingleChoice, onDone: () => voi
                 <label className="block text-gray-700 text-sm font-bold mb-2">Select One</label>
                 <div className="flex flex-col">
                     {choices.map((choice, i) => <label className="inline-flex items-center" key={i}>
-                        <input type="radio" name="choice" className="form-radio text-indigo-500" defaultChecked={selected === i}/>
+                        <input type="radio" name="choice" className="form-radio text-indigo-500"
+                               defaultChecked={selected === i}/>
                         <span className="ml-2">{choice.text}</span>
                     </label>)}
                 </div>
@@ -281,7 +279,8 @@ const MultipleChoiceQuestion: React.FC<{ question: MultipleChoice, onDone: () =>
                 <label className="block text-gray-700 text-sm font-bold mb-2">Choose as many as you like</label>
                 <div className="flex flex-col">
                     {choices.map((choice, i) => <label className="inline-flex items-center" key={i}>
-                        <input type="checkbox" className="form-checkbox text-indigo-500" defaultChecked={selected.includes(i) }/>
+                        <input type="checkbox" className="form-checkbox text-indigo-500"
+                               defaultChecked={selected.includes(i)}/>
                         <span className="ml-2">{choice.text}</span>
                     </label>)}
                 </div>
