@@ -10,7 +10,7 @@ type FormQuestion = TextQuestion | SingleChoice | MultipleChoice
 
 type TextQuestion = {
     _type: "text",
-    default: O.Option<string>
+    defaultText: string
 } & Meta
 
 
@@ -28,7 +28,7 @@ type Choices = {
 
 type SingleChoice = {
     _type: "single",
-    selected: O.Option<number>
+    selected?: number
 } & Choices & Meta
 
 type MultipleChoice = {
@@ -61,7 +61,7 @@ const sampleTextStep: Step = {
     id: "step1",
     question: {
         _type: "text",
-        default: O.none,
+        defaultText: "",
         question: "What is your last name",
         description: "Provide your legal last name",
 
@@ -76,7 +76,6 @@ const sampleSingleChoiceStep: Step = {
         question: "Are you insured?",
         description: "What is your insruance status",
         choices: [{text: "Yes"}, {text: "No"}],
-        selected: O.none
     }
 }
 
@@ -88,7 +87,7 @@ const sampleMultipleChoiceStep: Step = {
         question: "What is the issue",
         description: "What is the problem with your claim(select all that apply)",
         choices: [{text: "Incorrect Charge"}, {text: "Charged Too Much"}, {text: "Incorrect Information"}],
-        selected: []
+        selected: [1, 2]
     }
 }
 
@@ -96,6 +95,7 @@ export const mockEndpoint = (req: ServerRequest): Promise<ServerResponse> => {
     if (!req.questionId) return Promise.resolve({step: sampleTextStep})
     if (req.questionId === "step1") return Promise.resolve({step: sampleSingleChoiceStep})
     if (req.questionId === "step2") return Promise.resolve({step: sampleMultipleChoiceStep})
+    if (req.questionId === "step3") return Promise.resolve({step: {_type: "final"}})
 
     throw new Error("Invalid Server Request")
 }
@@ -127,30 +127,147 @@ const addQuestion = (id: string, question: FormQuestion) => (questions: Question
 
 const getQuestion = (id: string) => (questions: Questions) => pipe(questions, M.lookup(s.Eq)(id))
 
-const Question: React.FC<{ question: FormQuestion }> = props => {
-    return <div>you</div>
+const Question: React.FC<{ question: FormQuestion, onDone: () => void }> = props => {
+    switch (props.question._type) {
+        case "text":
+            return <TextQuestion question={props.question} onDone={props.onDone}/>
+        case "single":
+            return <SingleChoiceQuestion question={props.question} onDone={props.onDone}/>
+        case "multiple":
+            return <MultipleChoiceQuestion question={props.question} onDone={props.onDone}/>
+    }
+    return null
 }
 
 const Done: React.FC<{}> = props => {
-    return <div>Done</div>
-}
-const Welcome: React.FC<{ onReady: () => void }> = (props) => <div>
-    <div><h1>Hey There!</h1>
-        <p>Sorry to hear you are having an issue with your bill</p></div>
-    <div>
-        <button className="py-2 px-4 rounded" onClick={() => props.onReady}>
-            Start
-        </button>
+    return <div className="max-w-md mx-auto my-10 p-6">
+        <h1>We're on it!</h1>
+        <p>This is a confirmation message</p>
     </div>
-</div>
+}
+const Welcome: React.FC<{ onReady: () => void }> = (props) =>
+    <div className="min-h-screen flex flex-col justify-between">
+        <div className="flex-grow flex flex-col justify-center max-w-md mx-auto p-6">
+            <div className="text-center">
+                <h1 className={"text-4xl font-bold"}>Hey There!</h1>
+                <p className={"mt-4"}>Sorry to hear you are having an issue with your bill</p>
+            </div>
+        </div>
+        <div className="bg-gray-100 shadow-md p-4">
+            <button
+                className="w-full bg-green-500 text-white py-2 px-4 rounded hover:bg-green-600 focus:outline-none focus:shadow-outline-green active:bg-green-800"
+                type="button"
+                onClick={() => props.onReady()}
+            >
+                Start
+            </button>
+        </div>
+    </div>
+
+const TextQuestion: React.FC<{ question: TextQuestion, onDone: () => void }> = ({
+                                                                                    question: {
+                                                                                        question,
+                                                                                        description,
+                                                                                        defaultText
+                                                                                    }, onDone
+                                                                                }) => {
+    return (
+        <div className="max-w-md mx-auto my-10 p-6 bg-white rounded-md shadow-md">
+            <h2 className="text-2xl font-bold mb-4">{question}</h2>
+            <p className="text-gray-600 mb-6">{description}</p>
+
+            <div className="mb-4">
+                <input
+                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:border-indigo-500"
+                    type="text"
+                    placeholder={defaultText}
+                />
+            </div>
+
+            <button
+                className="bg-green-500 text-white py-2 px-4 rounded hover:bg-green-600 focus:outline-none focus:shadow-outline-green active:bg-green-800"
+                type="button"
+                onClick={() => onDone()}
+            >
+                Ok!
+            </button>
+        </div>
+    )
+}
+
+const SingleChoiceQuestion: React.FC<{ question: SingleChoice, onDone: () => void }> = ({
+                                                                                            onDone,
+                                                                                            question: {
+                                                                                                question,
+                                                                                                description,
+                                                                                                choices
+                                                                                            }
+                                                                                        }) => {
+    return (
+        <div className="max-w-md mx-auto my-10 p-6 bg-white rounded-md shadow-md">
+            <h2 className="text-2xl font-bold mb-4">{question}</h2>
+            <p className="text-gray-600 mb-4">{description}</p>
+
+            <div className="mb-4">
+                <label className="block text-gray-700 text-sm font-bold mb-2">Select One</label>
+                <div className="flex flex-col">
+                    {choices.map((choice, i) => <label className="inline-flex items-center" key={i}>
+                        <input type="radio" name="choice" className="form-radio text-indigo-500"/>
+                        <span className="ml-2">{choice.text}</span>
+                    </label>)}
+                </div>
+            </div>
+
+            <button
+                className="bg-green-500 text-white py-2 px-4 rounded hover:bg-green-600 focus:outline-none focus:shadow-outline-green active:bg-green-800"
+                type="button"
+                onClick={onDone}
+            >
+                Ok!
+            </button>
+        </div>
+    );
+};
+const MultipleChoiceQuestion: React.FC<{ question: MultipleChoice, onDone: () => void }> = ({
+                                                                                                onDone,
+                                                                                                question: {
+                                                                                                    question,
+                                                                                                    description,
+                                                                                                    choices
+                                                                                                }
+                                                                                            }) => {
+    return (
+        <div className="max-w-md mx-auto my-10 p-6 bg-white rounded-md shadow-md">
+            <h2 className="text-2xl font-bold mb-4">{question}</h2>
+            <p className="text-gray-600 mb-4">{description}</p>
+
+            <div className="mb-4">
+                <label className="block text-gray-700 text-sm font-bold mb-2">Choose as many as you like</label>
+                <div className="flex flex-col">
+                    {choices.map((choice, i) => <label className="inline-flex items-center" key={i}>
+                        <input type="checkbox" className="form-checkbox text-indigo-500"/>
+                        <span className="ml-2">{choice.text}</span>
+                    </label>)}
+                </div>
+            </div>
+
+
+            <button
+                className="bg-green-500 text-white py-2 px-4 rounded hover:bg-green-600 focus:outline-none focus:shadow-outline-green active:bg-green-800"
+                type="button"
+                onClick={onDone}
+            >
+                Ok!
+            </button>
+        </div>
+    );
+};
+
 
 export const FormController = () => {
     const [questions, setQuestions] = React.useState<Questions>(new Map());
     const [formState, setFormState] = React.useState<FormState>(welcomeForm)
 
-
-    useEffect(() => {
-    }, [])
 
     const handleAddQuestion = (id: string, question: FormQuestion) => {
         setQuestions(addQuestion(id, question))
@@ -171,9 +288,10 @@ export const FormController = () => {
             return <Welcome onReady={handleStart}/>
         case "active":
             return pipe(questions, getQuestion(formState.id), O.map(quesiton => <Question
-                question={quesiton}/>), O.toNullable)
+                question={quesiton}
+                onDone={() => queryServer({questionId: formState.id}).then(processResponse(handleAddQuestion, handleFormDone))}/>), O.toNullable)
         case "done":
-            <Done/>
+            return <Done/>
     }
     return null;
 
